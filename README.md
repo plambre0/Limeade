@@ -1,4 +1,4 @@
-# ScootSafe
+# Limeade
 
 Real-time safety system for electric scooter riders.
 
