@@ -32,7 +32,7 @@ export default function UpdateBoard(){
 
 
             
-            <Grow in = {true}>
+            <Grow in = {true}  {...(true ? { timeout: 900 } : {})}>
             <Card variant="outlined" sx={{boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
         borderRadius: '10px',
             border: '2px solid #322332'}}>
