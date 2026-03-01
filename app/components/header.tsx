@@ -25,6 +25,16 @@ function Live() {
   );
 }
 
+function About() {
+  return (
+    <Link href="/about">
+          <Button variant= "text" sx={{color: 'white'}}>
+                About
+            </Button>
+    </Link>
+  );
+}
+
 
 
 
@@ -38,6 +48,7 @@ export default function Header() {
         <div className="flex flex-row gap-8 w-full">
             <Map />
             <Live />
+            <About />
         </div>
       </Toolbar>
     </AppBar>
