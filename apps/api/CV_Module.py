@@ -26,7 +26,7 @@ from ultralytics import YOLO
 # Allowed COCO labels for the vehicle/general model
 # ---------------------------------------------------------------------------
 VEHICLE_LABELS = frozenset([
-    "person", "bicycle", "car", "motorcycle",
+    "bicycle", "car", "motorcycle",
     "bus", "truck", "traffic light", "stop sign",
 ])
 

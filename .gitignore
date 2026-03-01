@@ -43,4 +43,4 @@ __pycache__/
 *.pt
 *.pth
 .venv/
-venv/
+venv/.idea/

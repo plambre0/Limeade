@@ -98,7 +98,6 @@ Respond with ONLY valid JSON, no explanation, no markdown:
   "urgency": 1 to 5,
   "threat_type": "fast_vehicle" or "nearby_vehicle" or "pedestrian_conflict" or "road_hazard" or "construction" or "multi_threat" or "none",
   "threat_summary": "one sentence describing the threat",
-  "is_real_threat": true or false,
   "rider_action": "what the rider should do",
   "alert_type": "haptic_only" or "sound_only" or "haptic_and_sound" or "none",
   "haptic_pattern": "single_pulse" or "double_pulse" or "triple_pulse" or "continuous" or "none",

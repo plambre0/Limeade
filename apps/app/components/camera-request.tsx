@@ -30,23 +30,41 @@ export default function CameraPage() {
     if (!lastMessage) return;
     try {
       const msg = JSON.parse(lastMessage);
-      if (msg.type !== 'detection') return;
-      const score = msg.danger_score ?? 0;
-      if (score >= 0.8) {
-        Vibration.vibrate([0, 500, 200, 500]);
-      } else if (score >= 0.5) {
-        Vibration.vibrate(400);
-      } else if (score >= 0.3) {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
-      if (score >= 0.3 && Date.now() - lastSpoke.current > 5000) {
-        const quip = getAlert(msg.detections ?? []);
-        if (quip) {
-          lastSpoke.current = Date.now();
-          Speech.speak(quip, { rate: 1.1 });
-        }
-      }
-    } catch {}
+
+      if (msg.type === 'assessment') {
+          const a = msg.assessment;
+          if (!a || !a.is_real_threat) return;
+          // Vibration intensity based on Claude's urgency (1-5)
+          if (a.urgency >= 5) {
+              Vibration.vibrate([0, 500, 200, 500, 200, 500]);
+          } else if (a.urgency >= 4) {
+              Vibration.vibrate([0, 500, 200, 500]);
+          } else if (a.urgency >= 3) {
+              Vibration.vibrate(400);
+          } else {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+          }
+          // Speak Claude's threat summary
+          Speech.stop();
+          Speech.speak(a.threat_summary, { rate: 1.1 });
+      }else if (msg.type === 'detection'){
+       const score = msg.danger_score ?? 0;
+       if (score >= 0.8) {
+           Vibration.vibrate([0, 500, 200, 500]);
+       } else if (score >= 0.5) {
+           Vibration.vibrate(400);
+       } else if (score >= 0.3) {
+           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+       }
+       if (score >= 0.3 && Date.now() - lastSpoke.current > 5000) {
+           const quip = getAlert(msg.detections ?? []);
+           if (quip) {
+               lastSpoke.current = Date.now();
+               Speech.speak(quip, { rate: 1.1 });
+           }
+       }
+    }
+    catch {}
   }, [lastMessage]);
 
   useEffect(() => {
