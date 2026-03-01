@@ -1,16 +1,35 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
-import { Button, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Button, StyleSheet, Text, TouchableOpacity, Vibration, View } from 'react-native';
 import { useSocket } from './SocketContext';
 
 export default function CameraPage() {
   const cameraRef = useRef<CameraView | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
-  const { sendAndWait } = useSocket();
+  const { sendAndWait, lastMessage } = useSocket();
   const streamingRef = useRef(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const locationRef = useRef<{ latitude: number; longitude: number }>({ latitude: 0, longitude: 0 });
+
+  // Haptic feedback based on danger score from detection response
+  useEffect(() => {
+    if (!lastMessage) return;
+    try {
+      const msg = JSON.parse(lastMessage);
+      if (msg.type !== 'detection') return;
+      const score = msg.danger_score ?? 0;
+      if (score >= 0.8) {
+        // Long rumble: vibrate 500ms, pause 200ms, vibrate 500ms
+        Vibration.vibrate([0, 500, 200, 500]);
+      } else if (score >= 0.5) {
+        Vibration.vibrate(400);
+      } else if (score >= 0.3) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+    } catch {}
+  }, [lastMessage]);
 
   useEffect(() => {
     (async () => {
