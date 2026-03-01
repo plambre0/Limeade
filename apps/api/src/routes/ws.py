@@ -192,6 +192,12 @@ def compute_danger_score(detections: list, frame_width: int, rider_speed_mph: fl
                 if 0.25 < cx < 0.75:
                     score += 0.3
 
+        if d["category"] == "pedestrian":
+            if d.get("estimated_distance") == "close":
+                score += 0.4
+            elif d.get("estimated_distance") == "medium":
+                score += 0.2
+
         if d["category"] == "hazard":
             score += 0.5
 
@@ -472,18 +478,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 "latency_ms": latency_ms,
             })
 
-            # Trigger block — replaces the old "fire on every dangerous frame".
-            # Now requires CONSECUTIVE_TRIGGER (3) back-to-back dangerous frames
-            # AND at least COOLDOWN_SECONDS (3.0s) since the last Haiku call.
-            if danger_score >= DANGER_THRESHOLD:
-                consecutive_danger += 1
-            else:
-                consecutive_danger = 0
-
-            now = time.monotonic()
-            if consecutive_danger >= CONSECUTIVE_TRIGGER and (now - last_haiku_time) >= COOLDOWN_SECONDS:
-                last_haiku_time = now
-                consecutive_danger = 0   # reset so it won't immediately re-fire
+            # Save hazard and optionally assess with Claude
+            if danger_score >= DANGER_THRESHOLD and lat and lng:
                 det_summary = ", ".join(
                     f"{d['label']}({d['category']}:{d['confidence']} ar={d.get('approach_rate', 0)} {d.get('estimated_distance', '?')})"
                     for d in detections
@@ -492,15 +488,38 @@ async def websocket_endpoint(websocket: WebSocket):
                     "Frame %d: danger=%.2f [%s] lat=%s lng=%s latency=%s",
                     frame_counter, danger_score, det_summary, lat, lng, latency_ms,
                 )
-                task = asyncio.create_task(
-                    assess_and_send(
-                        websocket, frame_counter, image_b64,
-                        detections, danger_score, lat, lng,
-                        list(trend_buffer),               # [NEW] pass snapshot of trend
-                    )
-                )
-                background_tasks.add(task)
-                task.add_done_callback(background_tasks.discard)
+
+                # Determine hazard type from detections
+                categories = [d["category"] for d in detections]
+                if "hazard" in categories:
+                    hazard_type = "road_hazard"
+                elif "vehicle" in categories:
+                    hazard_type = "vehicle"
+                elif "pedestrian" in categories:
+                    hazard_type = "pedestrian"
+                else:
+                    hazard_type = "unknown"
+
+                # Map danger score to severity 1-5
+                severity = min(max(int(danger_score * 5) + 1, 1), 5)
+                description = det_summary
+
+                # Save directly to DB (no Claude needed)
+                try:
+                    async with SessionLocal() as session:
+                        hazard = Hazard(
+                            latitude=lat,
+                            longitude=lng,
+                            hazard_type=hazard_type,
+                            severity=severity,
+                            description=description,
+                            source="cv_detection",
+                        )
+                        session.add(hazard)
+                        await session.commit()
+                        logger.info("Frame %d: saved hazard id=%d type=%s sev=%d", frame_counter, hazard.id, hazard_type, severity)
+                except Exception as e:
+                    logger.warning("Failed to save hazard: %s", e)
 
     except WebSocketDisconnect:
         logger.info("WebSocket client disconnected")
