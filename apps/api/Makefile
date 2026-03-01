@@ -1,11 +1,15 @@
-.PHONY: dev install db db-stop db-reset
+.PHONY: dev install lint db db-stop db-reset
 
 dev:
 	.venv/bin/uvicorn main:app --reload
 
 install:
-	python -m venv .venv
+	python3 -m venv .venv
 	.venv/bin/pip install -r requirements.txt
+
+lint:
+	.venv/bin/ruff check .
+	.venv/bin/ruff format --check .
 
 db:
 	cd ../../infra && docker compose up -d
