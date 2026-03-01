@@ -26,6 +26,7 @@ export default function CameraPage() {
           quality: 0.1,
           skipProcessing: true,
           imageType: 'jpg',
+          shutterSound: false,
         });
         if (photo?.base64 && streamingRef.current) {
           send(JSON.stringify({
@@ -61,6 +62,7 @@ export default function CameraPage() {
         ref={cameraRef}
         style={styles.camera}
         facing="back"
+        animateShutter={false}
       />
       <View style={styles.buttonContainer}>
         <TouchableOpacity style={styles.button} onPress={isStreaming ? stopStream : startStream}>
