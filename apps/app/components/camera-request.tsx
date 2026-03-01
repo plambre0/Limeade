@@ -6,7 +6,7 @@ import { useSocket } from './SocketContext';
 export default function CameraPage() {
   const cameraRef = useRef<CameraView | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
-  const { send } = useSocket();
+  const { sendAndWait } = useSocket();
   const streamingRef = useRef(false);
   const [isStreaming, setIsStreaming] = useState(false);
 
@@ -29,7 +29,7 @@ export default function CameraPage() {
           shutterSound: false,
         });
         if (photo?.base64 && streamingRef.current) {
-          send(JSON.stringify({
+          await sendAndWait(JSON.stringify({
             image: photo.base64,
             latitude: 0,
             longitude: 0,
@@ -63,6 +63,7 @@ export default function CameraPage() {
         style={styles.camera}
         facing="back"
         animateShutter={false}
+        pictureSize="640x480"
       />
       <View style={styles.buttonContainer}>
         <TouchableOpacity style={styles.button} onPress={isStreaming ? stopStream : startStream}>
