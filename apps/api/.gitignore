@@ -4,3 +4,8 @@ __pycache__
 !.env.example
 
 .ruff_cache
+
+
+src/cv/model/train/
+src/cv/model/test/
+src/cv/model/valid/
