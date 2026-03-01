@@ -321,8 +321,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 "latency_ms": latency_ms,
             })
 
-            # Only send to Claude when danger score exceeds threshold
-            if danger_score >= DANGER_THRESHOLD:
+            # Save hazard and optionally assess with Claude
+            if danger_score >= DANGER_THRESHOLD and lat and lng:
                 det_summary = ", ".join(
                     f"{d['label']}({d['category']}:{d['confidence']} ar={d.get('approach_rate', 0)} {d.get('estimated_distance', '?')})"
                     for d in detections
@@ -331,11 +331,38 @@ async def websocket_endpoint(websocket: WebSocket):
                     "Frame %d: danger=%.2f [%s] lat=%s lng=%s latency=%s",
                     frame_counter, danger_score, det_summary, lat, lng, latency_ms,
                 )
-                task = asyncio.create_task(
-                    assess_and_send(websocket, frame_counter, image_b64, detections, danger_score, lat, lng)
-                )
-                background_tasks.add(task)
-                task.add_done_callback(background_tasks.discard)
+
+                # Determine hazard type from detections
+                categories = [d["category"] for d in detections]
+                if "hazard" in categories:
+                    hazard_type = "road_hazard"
+                elif "vehicle" in categories:
+                    hazard_type = "vehicle"
+                elif "pedestrian" in categories:
+                    hazard_type = "pedestrian"
+                else:
+                    hazard_type = "unknown"
+
+                # Map danger score to severity 1-5
+                severity = min(max(int(danger_score * 5) + 1, 1), 5)
+                description = det_summary
+
+                # Save directly to DB (no Claude needed)
+                try:
+                    async with SessionLocal() as session:
+                        hazard = Hazard(
+                            latitude=lat,
+                            longitude=lng,
+                            hazard_type=hazard_type,
+                            severity=severity,
+                            description=description,
+                            source="cv_detection",
+                        )
+                        session.add(hazard)
+                        await session.commit()
+                        logger.info("Frame %d: saved hazard id=%d type=%s sev=%d", frame_counter, hazard.id, hazard_type, severity)
+                except Exception as e:
+                    logger.warning("Failed to save hazard: %s", e)
 
     except WebSocketDisconnect:
         logger.info("WebSocket client disconnected")

@@ -6,29 +6,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Button, StyleSheet, Text, TouchableOpacity, Vibration, View } from 'react-native';
 import { useSocket } from './SocketContext';
 
-const POTHOLE_LINES = [
-  "Get off the road you broke ass bum!",
-];
-
-const PEDESTRIAN_LINES = [
-  "Look at this bummy ass pedestrian, get a car pooron!",
-];
-
-const VEHICLE_LINES = [
-  "Car! Uh oh!",
-];
-
-function pickRandom(lines: string[]) {
-  return lines[Math.floor(Math.random() * lines.length)];
-}
-
-function getQuip(detections: any[]): string | null {
+function getAlert(detections: any[]): string | null {
   const hasHazard = detections.some((d: any) => d.category === 'hazard');
   const hasPedestrian = detections.some((d: any) => d.category === 'pedestrian');
   const hasVehicle = detections.some((d: any) => d.category === 'vehicle');
-  if (hasHazard) return pickRandom(POTHOLE_LINES);
-  if (hasVehicle) return pickRandom(VEHICLE_LINES);
-  if (hasPedestrian) return pickRandom(PEDESTRIAN_LINES);
+  if (hasHazard) return "Pothole ahead";
+  if (hasVehicle) return "Vehicle nearby";
+  if (hasPedestrian) return "Pedestrian ahead";
   return null;
 }
 
@@ -56,7 +40,7 @@ export default function CameraPage() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
       if (score >= 0.3 && Date.now() - lastSpoke.current > 5000) {
-        const quip = getQuip(msg.detections ?? []);
+        const quip = getAlert(msg.detections ?? []);
         if (quip) {
           lastSpoke.current = Date.now();
           Speech.speak(quip, { rate: 1.1 });
