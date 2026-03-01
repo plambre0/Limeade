@@ -4,13 +4,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from src.db import engine
 from src.models import Base
 from src.routes.hazards import router as hazards_router
+from src.routes.ws import router as ws_router
 
 
 @asynccontextmanager
@@ -32,6 +33,7 @@ app.add_middleware(
 )
 
 app.include_router(hazards_router)
+app.include_router(ws_router)
 
 
 @app.get("/health")
@@ -45,14 +47,3 @@ async def health():
 
     status = "ok" if db_status == "ok" else "degraded"
     return {"status": status, "db": db_status}
-
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    try:
-        while True:
-            data = await websocket.receive_text()
-            await websocket.send_text(f"hello {data}")
-    except WebSocketDisconnect:
-        pass
