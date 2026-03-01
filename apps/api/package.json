@@ -2,6 +2,7 @@
   "name": "api",
   "private": true,
   "scripts": {
+    "preinstall": "mkdir -p node_modules",
     "dev": "make dev"
   }
 }

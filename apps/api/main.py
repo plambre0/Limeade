@@ -6,11 +6,12 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from sqlalchemy import text
 
-from db import engine
-from models import Base
+from src.db import engine
+from src.models import Base
+from src.routes.hazards import router as hazards_router
+from src.routes.ws import router as ws_router
 
 
 @asynccontextmanager
@@ -30,6 +31,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(hazards_router)
+app.include_router(ws_router)
 
 
 @app.get("/health")
