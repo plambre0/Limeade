@@ -30,9 +30,8 @@ VEHICLE_LABELS = frozenset([
     "bus", "truck", "traffic light", "stop sign",
 ])
 
-# Confidence floors
+# Confidence floor
 VEHICLE_CONF = 0.25   # low — catch distant vehicles early
-HAZARD_CONF  = 0.35   # slightly higher to reduce noise
 
 # Tracker constants
 IOU_MATCH_THRESHOLD = 0.2   # low for slow-moving distant objects at 2-5 FPS
@@ -109,27 +108,18 @@ def compute_danger_score(event: dict) -> float:
 
 class ObjectDetector:
     """
-    Dual-model YOLO detector.
+    Single-model YOLO detector.
       Model A  — YOLOv8s (COCO) for vehicles, pedestrians, signs.
-      Model B  — Optional custom model for potholes / road hazards.
     """
 
-    def __init__(self, pothole_model_path: str | None = None):
+    def __init__(self):
         # Model A: vehicles & general (YOLOv8 small, 11.2M params)
         self.vehicle_model = YOLO("yolov8s.pt")
-
-        # Model B: road hazards (optional)
-        self.hazard_model = None
-        if pothole_model_path is not None:
-            try:
-                self.hazard_model = YOLO(pothole_model_path)
-            except Exception as exc:
-                print(f"[ObjectDetector] Could not load hazard model: {exc}")
 
     # ------------------------------------------------------------------
     def detect(self, frame: np.ndarray) -> list[dict]:
         """
-        Run both models on *frame* (BGR, 720p).
+        Run vehicle model on *frame* (BGR, 720p).
         Returns list of detection dicts (label, confidence, bbox, source).
         """
         detections: list[dict] = []
@@ -147,19 +137,6 @@ class ObjectDetector:
                 "bbox": (int(x1), int(y1), int(x2), int(y2)),
                 "source": "vehicle_model",
             })
-
-        # --- Model B: hazards (if loaded) ---
-        if self.hazard_model is not None:
-            results_b = self.hazard_model(frame, conf=HAZARD_CONF, verbose=False)
-            for box in results_b[0].boxes:
-                label = self.hazard_model.names[int(box.cls)]
-                x1, y1, x2, y2 = box.xyxy[0].tolist()
-                detections.append({
-                    "label": label,
-                    "confidence": float(box.conf),
-                    "bbox": (int(x1), int(y1), int(x2), int(y2)),
-                    "source": "hazard_model",
-                })
 
         return detections
 
@@ -476,8 +453,8 @@ class CVPipeline:
     draw_overlays()  → annotated frame     (for monitoring dashboard)
     """
 
-    def __init__(self, pothole_model_path: str | None = None):
-        self.detector = ObjectDetector(pothole_model_path=pothole_model_path)
+    def __init__(self):
+        self.detector = ObjectDetector()
         self.tracker = BboxTracker()
         self.motion = MotionAnalyzer()
         self.prev_gray: np.ndarray | None = None
@@ -566,15 +543,12 @@ class CVPipeline:
 
         # ---- Build DetectionEvent ----
         vehicles = []
-        hazards = []
         for det in tracked:
             # Convert bbox tuple to list for JSON serialization
             entry = dict(det)
             entry["bbox"] = list(entry["bbox"])
-            if det["source"] == "hazard_model":
-                hazards.append(entry)
-            else:
-                vehicles.append(entry)
+            vehicles.append(entry)
+        hazards = []  # potholes handled separately by teammates' pipeline
 
         # Scene summary
         vehicle_distances = [
@@ -713,16 +687,14 @@ class CVPipeline:
             "close": (0, 165, 255),
             "very_close": (0, 0, 255),
         }
-        hazard_color = (255, 0, 255)  # magenta
 
-        all_dets = event.get("detections", []) + event.get("hazards", [])
+        all_dets = event.get("detections", [])
 
         for det in all_dets:
             x1, y1, x2, y2 = det["bbox"]
-            is_hazard = det.get("source") == "hazard_model"
             dist = det.get("estimated_distance", "very_far")
 
-            color = hazard_color if is_hazard else dist_colors.get(dist, (0, 200, 0))
+            color = dist_colors.get(dist, (0, 200, 0))
 
             cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
 
@@ -792,7 +764,7 @@ class CVPipeline:
 if __name__ == "__main__":
     import json
 
-    pipeline = CVPipeline()  # no pothole model for basic test
+    pipeline = CVPipeline()
 
     def test_trigger_callback(payload: dict):
         print("\n[TRIGGER FIRED] Module E would be called now.")
