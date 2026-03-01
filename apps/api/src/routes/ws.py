@@ -1,9 +1,12 @@
+import asyncio
 import base64
 import json
 import logging
+import os
 import time
 from pathlib import Path
 
+import anthropic
 import cv2
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -18,7 +21,42 @@ FRAMES_DIR.mkdir(exist_ok=True)
 MODEL_PATH = Path(__file__).resolve().parent.parent / "cv" / "model" / "runs" / "detect" / "train20" / "weights" / "best.pt"
 model = YOLO(str(MODEL_PATH))
 
+claude = anthropic.AsyncAnthropic(api_key=os.environ.get("CLAUDE_API_KEY"))
+
 frame_counter = 0
+
+CLASSIFY_PROMPT = """You are analyzing a road hazard detected by a pothole detection model.
+Look at the detected region and respond with ONLY a JSON object (no markdown):
+{
+  "severity": "low" | "medium" | "high",
+  "hazard_type": "pothole" | "crack" | "uneven_surface" | "other",
+  "description": "<one sentence description>"
+}"""
+
+
+async def classify_and_send(websocket: WebSocket, frame: int, image_b64: str, detections: list):
+    try:
+        response = await claude.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=150,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": image_b64}},
+                    {"type": "text", "text": CLASSIFY_PROMPT},
+                ],
+            }],
+        )
+        classification = json.loads(response.content[0].text)
+        logger.info("Frame %d classified: %s", frame, classification)
+        await websocket.send_json({
+            "type": "classification",
+            "frame": frame,
+            "detections": detections,
+            "classification": classification,
+        })
+    except Exception as e:
+        logger.warning("Claude classification failed: %s", e)
 
 
 @router.websocket("/ws")
@@ -26,6 +64,7 @@ async def websocket_endpoint(websocket: WebSocket):
     global frame_counter
     await websocket.accept()
     logger.info("WebSocket client connected")
+    background_tasks: set[asyncio.Task] = set()
     try:
         while True:
             raw = await websocket.receive_text()
@@ -68,19 +107,31 @@ async def websocket_endpoint(websocket: WebSocket):
                 "total": round((t_total - t_start) * 1000, 1),
             }
 
-            if detections:
-                logger.info(
-                    "Frame %d: %d detections, lat=%s, lng=%s, latency=%s",
-                    frame_counter, len(detections), lat, lng, latency_ms,
-                )
-
+            # send YOLO results immediately
             await websocket.send_json({
+                "type": "detection",
                 "status": "ok",
                 "frame": frame_counter,
                 "detections": detections,
                 "latency_ms": latency_ms,
             })
+
+            # fire off Claude classification in background
+            if detections:
+                logger.info(
+                    "Frame %d: %d detections, lat=%s, lng=%s, latency=%s",
+                    frame_counter, len(detections), lat, lng, latency_ms,
+                )
+                task = asyncio.create_task(
+                    classify_and_send(websocket, frame_counter, image_b64, detections)
+                )
+                background_tasks.add(task)
+                task.add_done_callback(background_tasks.discard)
+
     except WebSocketDisconnect:
         logger.info("WebSocket client disconnected")
     except Exception:
         await websocket.close(code=1011)
+    finally:
+        for task in background_tasks:
+            task.cancel()

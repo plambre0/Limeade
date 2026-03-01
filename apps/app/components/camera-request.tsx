@@ -23,7 +23,7 @@ export default function CameraPage() {
       try {
         const photo = await cameraRef.current?.takePictureAsync({
           base64: true,
-          quality: 0.1,
+          quality: 0.3,
           skipProcessing: true,
           imageType: 'jpg',
           shutterSound: false,
