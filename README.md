@@ -40,3 +40,6 @@ Real-time safety system for electric scooter riders: detects road hazards ahead,
 ```bash
 cd apps/api
 pip install -r requirements.txt
+
+###Dataset Source
+https://universe.roboflow.com/damz/dash-cam-pothole-detection-uplo2
