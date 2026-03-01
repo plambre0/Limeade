@@ -93,7 +93,7 @@ Respond with ONLY valid JSON, no explanation, no markdown:
 
 
 # ---------------------------------------------------------------------------
-# ScootSafeServer
+# LimadeServer
 # ---------------------------------------------------------------------------
 
 class ScootSafeServer:
