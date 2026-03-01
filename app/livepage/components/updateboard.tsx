@@ -32,7 +32,8 @@ export default function UpdateBoard(){
             border: '2px solid #322332'}}>
                 <CardContent>
                     <Typography>
-                        This is a placeholder
+                        This is a placeholder????????????????
+                        heu
                     </Typography>
                 </CardContent>
             </Card>
