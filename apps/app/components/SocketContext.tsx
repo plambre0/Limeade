@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
+import { AppState } from 'react-native';
 
 type SocketContextValue = {
   isConnected: boolean;
@@ -21,7 +22,8 @@ export function SocketProvider({ url, children }: { url: string; children: React
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<string | null>(null);
 
-  useEffect(() => {
+  const connect = useCallback(() => {
+    wsRef.current?.close();
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
@@ -29,12 +31,25 @@ export function SocketProvider({ url, children }: { url: string; children: React
     ws.onclose = () => setIsConnected(false);
     ws.onerror = () => setIsConnected(false);
     ws.onmessage = (e) => setLastMessage(e.data);
+  }, [url]);
+
+  useEffect(() => {
+    connect();
+
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        if (wsRef.current?.readyState !== WebSocket.OPEN) {
+          connect();
+        }
+      }
+    });
 
     return () => {
-      ws.close();
+      sub.remove();
+      wsRef.current?.close();
       wsRef.current = null;
     };
-  }, [url]);
+  }, [connect]);
 
   function send(data: string) {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
