@@ -16,13 +16,16 @@ Run with:
 """
 
 import asyncio
+import base64
 import json
 import time
 import logging
 import os
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
-from collections import defaultdict
+from dotenv import load_dotenv
 
+load_dotenv()  # loads ANTHROPIC_API_KEY from apps/api/.env automatically
 import cv2
 import numpy as np
 import websockets
@@ -120,9 +123,8 @@ class ScootSafeServer:
         # Using asyncio.Queue so the thread can safely hand off to the async world
         self.trigger_queue: asyncio.Queue = asyncio.Queue()
 
-        # Frame pairing buffer: seq → metadata dict
-        # Module A sends JSON metadata first, then JPEG blob, paired by seq number
-        self.pending_metadata: dict = {}
+        # Frame counter for metadata seq numbers
+        self.frame_counter: int = 0
 
         logging.basicConfig(level=logging.INFO)
         self.log = logging.getLogger("ScootSafe.ModuleE")
@@ -131,51 +133,60 @@ class ScootSafeServer:
     async def handle_client(self, websocket):
         """
         Handles one connected React Native client.
-        Module A sends frames as pairs:
-          1. JSON text message: { "seq": 1, "timestamp": "...", "gps": {...}, "orientation": {...} }
-          2. Binary message: raw JPEG bytes for the same seq number
+        Module A sends a single JSON message per frame:
+          { "image": "<base64 jpeg>", "latitude": 41.8781, "longitude": -87.6298 }
 
-        This handler pairs them by seq number and submits to CV processing.
+        After processing we send back an ack so the phone's sendAndWait()
+        resolves and it can send the next frame.
         """
         self.clients.add(websocket)
         self.log.info(f"Client connected: {websocket.remote_address}")
         try:
             async for message in websocket:
-                if isinstance(message, str):
-                    # JSON metadata — store by seq number
-                    try:
-                        metadata = json.loads(message)
-                        seq = metadata.get("seq")
-                        if seq is not None:
-                            self.pending_metadata[seq] = metadata
-                    except json.JSONDecodeError:
-                        self.log.warning("Received invalid JSON metadata")
+                if not isinstance(message, str):
+                    continue
 
-                elif isinstance(message, bytes):
-                    # JPEG frame — find matching metadata by most recent seq
-                    # Use the most recently stored metadata if exact match not found
-                    metadata = None
-                    if self.pending_metadata:
-                        latest_seq = max(self.pending_metadata.keys())
-                        metadata = self.pending_metadata.pop(latest_seq, None)
-                        # Clean up stale metadata older than 10 frames
-                        stale = [s for s in self.pending_metadata if s < latest_seq - 10]
-                        for s in stale:
-                            del self.pending_metadata[s]
+                try:
+                    data = json.loads(message)
+                except json.JSONDecodeError:
+                    self.log.warning("Received invalid JSON, skipping")
+                    await websocket.send(json.dumps({"type": "ack"}))
+                    continue
 
-                    # Decode JPEG bytes to numpy frame
-                    frame = self._decode_jpeg(message)
-                    if frame is None:
-                        self.log.warning("Failed to decode JPEG frame, skipping")
-                        continue
+                b64 = data.get("image")
+                if not b64:
+                    self.log.warning("No image field in message, skipping")
+                    await websocket.send(json.dumps({"type": "ack"}))
+                    continue
 
-                    # Submit to CV pipeline in thread pool (non-blocking)
-                    self.loop.run_in_executor(
-                        self.executor,
-                        self.pipeline.process_frame,
-                        frame,
-                        metadata,
-                    )
+                frame = self._decode_base64_jpeg(b64)
+                if frame is None:
+                    self.log.warning("Failed to decode base64 JPEG, skipping")
+                    await websocket.send(json.dumps({"type": "ack"}))
+                    continue
+
+                metadata = {
+                    "seq": self.frame_counter,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "gps": {
+                        "lat": data.get("latitude", 0.0),
+                        "lng": data.get("longitude", 0.0),
+                        "speed_mph": 0.0,
+                    },
+                    "orientation": {},
+                }
+                self.frame_counter += 1
+
+                # Submit to CV pipeline in thread pool (non-blocking)
+                self.loop.run_in_executor(
+                    self.executor,
+                    self.pipeline.process_frame,
+                    frame,
+                    metadata,
+                )
+
+                # Ack immediately so phone's sendAndWait resolves
+                await websocket.send(json.dumps({"type": "ack"}))
 
         except websockets.exceptions.ConnectionClosed:
             self.log.info(f"Client disconnected: {websocket.remote_address}")
@@ -183,14 +194,15 @@ class ScootSafeServer:
             self.clients.discard(websocket)
 
     # ------------------------------------------------------------------
-    def _decode_jpeg(self, data: bytes) -> np.ndarray | None:
-        """Decode raw JPEG bytes to a BGR numpy array."""
+    def _decode_base64_jpeg(self, b64_string: str) -> np.ndarray | None:
+        """Decode a base64 JPEG string to a BGR numpy array."""
         try:
-            arr = np.frombuffer(data, dtype=np.uint8)
+            jpg_bytes = base64.b64decode(b64_string)
+            arr = np.frombuffer(jpg_bytes, dtype=np.uint8)
             frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
             return frame  # None if decode failed
         except Exception as exc:
-            self.log.error(f"JPEG decode error: {exc}")
+            self.log.error(f"Base64 JPEG decode error: {exc}")
             return None
 
     # ------------------------------------------------------------------
