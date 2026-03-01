@@ -68,5 +68,6 @@ ultralytics==8.4.19
 ultralytics-thop==2.0.18
 urllib3==2.6.3
 uvicorn==0.41.0
+anthropic>=0.25.0
 voluptuous==0.16.0
 yolo==0.3.1
