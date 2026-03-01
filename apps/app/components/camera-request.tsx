@@ -1,4 +1,5 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
 import { Button, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSocket } from './SocketContext';
@@ -6,11 +7,26 @@ import { useSocket } from './SocketContext';
 export default function CameraPage() {
   const cameraRef = useRef<CameraView | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
-  const { send } = useSocket();
+  const { sendAndWait } = useSocket();
   const streamingRef = useRef(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const locationRef = useRef<{ latitude: number; longitude: number }>({ latitude: 0, longitude: 0 });
 
   useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.High, distanceInterval: 1 },
+          (loc) => {
+            locationRef.current = {
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+            };
+          },
+        );
+      }
+    })();
     return () => { streamingRef.current = false; };
   }, []);
 
@@ -23,16 +39,15 @@ export default function CameraPage() {
       try {
         const photo = await cameraRef.current?.takePictureAsync({
           base64: true,
-          quality: 0.1,
+          quality: 0.3,
           skipProcessing: true,
           imageType: 'jpg',
           shutterSound: false,
         });
         if (photo?.base64 && streamingRef.current) {
-          send(JSON.stringify({
+          await sendAndWait(JSON.stringify({
             image: photo.base64,
-            latitude: 0,
-            longitude: 0,
+            ...locationRef.current,
           }));
         }
       } catch (e) {
@@ -63,6 +78,7 @@ export default function CameraPage() {
         style={styles.camera}
         facing="back"
         animateShutter={false}
+        pictureSize="640x480"
       />
       <View style={styles.buttonContainer}>
         <TouchableOpacity style={styles.button} onPress={isStreaming ? stopStream : startStream}>
