@@ -156,6 +156,12 @@ def compute_danger_score(detections: list, frame_width: int, rider_speed_mph: fl
                 if 0.25 < cx < 0.75:
                     score += 0.3
 
+        if d["category"] == "pedestrian":
+            if d.get("estimated_distance") == "close":
+                score += 0.4
+            elif d.get("estimated_distance") == "medium":
+                score += 0.2
+
         if d["category"] == "hazard":
             score += 0.5
 

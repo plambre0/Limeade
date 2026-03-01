@@ -1,9 +1,36 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
+import * as Speech from 'expo-speech';
 import { useEffect, useRef, useState } from 'react';
 import { Button, StyleSheet, Text, TouchableOpacity, Vibration, View } from 'react-native';
 import { useSocket } from './SocketContext';
+
+const POTHOLE_LINES = [
+  "Get off the road you broke ass bum!",
+];
+
+const PEDESTRIAN_LINES = [
+  "Look at this bummy ass pedestrian, get a car pooron!",
+];
+
+const VEHICLE_LINES = [
+  "Car! Uh oh!",
+];
+
+function pickRandom(lines: string[]) {
+  return lines[Math.floor(Math.random() * lines.length)];
+}
+
+function getQuip(detections: any[]): string | null {
+  const hasHazard = detections.some((d: any) => d.category === 'hazard');
+  const hasPedestrian = detections.some((d: any) => d.category === 'pedestrian');
+  const hasVehicle = detections.some((d: any) => d.category === 'vehicle');
+  if (hasHazard) return pickRandom(POTHOLE_LINES);
+  if (hasVehicle) return pickRandom(VEHICLE_LINES);
+  if (hasPedestrian) return pickRandom(PEDESTRIAN_LINES);
+  return null;
+}
 
 export default function CameraPage() {
   const cameraRef = useRef<CameraView | null>(null);
@@ -12,8 +39,9 @@ export default function CameraPage() {
   const streamingRef = useRef(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const locationRef = useRef<{ latitude: number; longitude: number }>({ latitude: 0, longitude: 0 });
+  const lastSpoke = useRef(0);
 
-  // Haptic feedback based on danger score from detection response
+  // Haptic + voice feedback based on danger score
   useEffect(() => {
     if (!lastMessage) return;
     try {
@@ -21,12 +49,18 @@ export default function CameraPage() {
       if (msg.type !== 'detection') return;
       const score = msg.danger_score ?? 0;
       if (score >= 0.8) {
-        // Long rumble: vibrate 500ms, pause 200ms, vibrate 500ms
         Vibration.vibrate([0, 500, 200, 500]);
       } else if (score >= 0.5) {
         Vibration.vibrate(400);
       } else if (score >= 0.3) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+      if (score >= 0.3 && Date.now() - lastSpoke.current > 5000) {
+        const quip = getQuip(msg.detections ?? []);
+        if (quip) {
+          lastSpoke.current = Date.now();
+          Speech.speak(quip, { rate: 1.1 });
+        }
       }
     } catch {}
   }, [lastMessage]);
