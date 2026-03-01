@@ -4,9 +4,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-
 from sqlalchemy import text
 
 from src.db import engine
@@ -46,3 +45,14 @@ async def health():
 
     status = "ok" if db_status == "ok" else "degraded"
     return {"status": status, "db": db_status}
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_text()
+            await websocket.send_text(f"hello {data}")
+    except WebSocketDisconnect:
+        pass
