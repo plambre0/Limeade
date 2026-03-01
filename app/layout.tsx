@@ -19,7 +19,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`antialiased overflow-hidden`}
+        className={`overflow-auto md:overflow-hidden`}
       >
         <ThemeRegistry>
           <Header />

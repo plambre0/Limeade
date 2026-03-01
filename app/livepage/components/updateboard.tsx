@@ -32,8 +32,8 @@ export default function UpdateBoard(){
 
 
             
-            <Grow in = {true}  {...(true ? { timeout: 900 } : {})}>
-            <Card variant="outlined" sx={{boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+            <Grow in = {true}  timeout ={900}>
+            <Card variant="outlined" sx={{mb: "1", boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
         borderRadius: '10px',
             border: '2px solid #322332'}}>
                 <CardContent>
@@ -49,7 +49,7 @@ export default function UpdateBoard(){
 
 
             {events.map((event) => (
-            <Grow in = {true}>
+            <Grow in = {true} key={event.id}>
                 <Card variant="outlined" sx={{boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
             borderRadius: '10px',
                 border: '2px solid #322332'}}>
