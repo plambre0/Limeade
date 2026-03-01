@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import anthropic
@@ -11,6 +12,9 @@ import cv2
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from ultralytics import YOLO
+
+from src.db import SessionLocal
+from src.models import Hazard
 
 router = APIRouter(tags=["ws"])
 logger = logging.getLogger("uvicorn.error")
@@ -167,7 +171,10 @@ def compute_danger_score(detections: list, frame_width: int, rider_speed_mph: fl
     return round(min(score, 1.0), 2)
 
 
-async def assess_and_send(websocket: WebSocket, frame: int, image_b64: str, detections: list, danger_score: float):
+async def assess_and_send(
+    websocket: WebSocket, frame: int, image_b64: str,
+    detections: list, danger_score: float, lat: float, lng: float,
+):
     try:
         prompt = ASSESSOR_PROMPT.format(
             detections_json=json.dumps(detections, indent=2),
@@ -193,6 +200,24 @@ async def assess_and_send(websocket: WebSocket, frame: int, image_b64: str, dete
             "danger_score": danger_score,
             "assessment": assessment,
         })
+
+        # Save hazard to database
+        if assessment.get("is_real_threat") and lat and lng:
+            urgency = assessment.get("urgency", 1)
+            severity = min(max(urgency, 1), 5)
+            async with SessionLocal() as session:
+                hazard = Hazard(
+                    latitude=lat,
+                    longitude=lng,
+                    hazard_type=assessment.get("threat_type", "unknown"),
+                    severity=severity,
+                    description=assessment.get("threat_summary", ""),
+                    source="cv_detection",
+                )
+                session.add(hazard)
+                await session.commit()
+                logger.info("Frame %d: saved hazard id=%d type=%s", frame, hazard.id, hazard.hazard_type)
+
     except Exception as e:
         logger.warning("Claude assessment failed: %s", e)
 
@@ -284,6 +309,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 "type": "detection",
                 "status": "ok",
                 "frame": frame_counter,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "detections": detections,
                 "danger_score": danger_score,
                 "latency_ms": latency_ms,
@@ -300,7 +326,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     frame_counter, danger_score, det_summary, lat, lng, latency_ms,
                 )
                 task = asyncio.create_task(
-                    assess_and_send(websocket, frame_counter, image_b64, detections, danger_score)
+                    assess_and_send(websocket, frame_counter, image_b64, detections, danger_score, lat, lng)
                 )
                 background_tasks.add(task)
                 task.add_done_callback(background_tasks.discard)

@@ -1,4 +1,5 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
 import { Button, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSocket } from './SocketContext';
@@ -9,8 +10,23 @@ export default function CameraPage() {
   const { sendAndWait } = useSocket();
   const streamingRef = useRef(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const locationRef = useRef<{ latitude: number; longitude: number }>({ latitude: 0, longitude: 0 });
 
   useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.High, distanceInterval: 1 },
+          (loc) => {
+            locationRef.current = {
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+            };
+          },
+        );
+      }
+    })();
     return () => { streamingRef.current = false; };
   }, []);
 
@@ -31,8 +47,7 @@ export default function CameraPage() {
         if (photo?.base64 && streamingRef.current) {
           await sendAndWait(JSON.stringify({
             image: photo.base64,
-            latitude: 0,
-            longitude: 0,
+            ...locationRef.current,
           }));
         }
       } catch (e) {
