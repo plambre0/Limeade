@@ -23,6 +23,9 @@ import logging
 import os
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
+from dotenv import load_dotenv
+
+load_dotenv()  # loads ANTHROPIC_API_KEY from apps/api/.env automatically
 import cv2
 import numpy as np
 import websockets
