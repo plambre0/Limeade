@@ -18,45 +18,71 @@ logger = logging.getLogger("uvicorn.error")
 FRAMES_DIR = Path("frames")
 FRAMES_DIR.mkdir(exist_ok=True)
 
-MODEL_PATH = Path(__file__).resolve().parent.parent / "cv" / "model" / "runs" / "detect" / "train20" / "weights" / "best.pt"
-model = YOLO(str(MODEL_PATH))
+CV_DIR = Path(__file__).resolve().parent.parent / "cv" / "model"
+
+# Custom pothole model
+pothole_model = YOLO(str(CV_DIR / "runs" / "detect" / "train20" / "weights" / "best.pt"))
+
+# COCO pretrained model for vehicles, pedestrians, infrastructure
+coco_model = YOLO(str(CV_DIR / "yolov8n.pt"))
+
+# COCO classes we care about, mapped to categories
+COCO_CLASS_MAP = {
+    "car": "vehicle",
+    "truck": "vehicle",
+    "bus": "vehicle",
+    "motorcycle": "vehicle",
+    "person": "pedestrian",
+    "bicycle": "pedestrian",
+    "traffic light": "infrastructure",
+    "stop sign": "infrastructure",
+}
 
 claude = anthropic.AsyncAnthropic(api_key=os.environ.get("CLAUDE_API_KEY"))
 
 frame_counter = 0
 
-CLASSIFY_PROMPT = """You are analyzing a road hazard detected by a pothole detection model.
-Look at the detected region and respond with ONLY a JSON object (no markdown):
-{
-  "severity": "low" | "medium" | "high",
-  "hazard_type": "pothole" | "crack" | "uneven_surface" | "other",
-  "description": "<one sentence description>"
-}"""
+ASSESSOR_PROMPT = """You are an AI safety system for an electric scooter rider. You receive a camera frame from the rider's phone mounted on the handlebars, plus computer vision detection data.
+
+Your job: assess the real danger level. The CV system may flag things that look dangerous but aren't (a car in a parallel lane, a parked vehicle, a pedestrian far away). You provide the reasoning the CV system cannot.
+
+Detection data for this frame:
+{detections_json}
+
+Respond with ONLY valid JSON (no markdown):
+{{
+  "urgency": <1-5 integer>,
+  "threat_type": "fast_vehicle" | "nearby_vehicle" | "pedestrian_conflict" | "road_hazard" | "construction" | "none",
+  "threat_summary": "<one sentence>",
+  "is_real_threat": true | false,
+  "rider_action": "<what the rider should do>"
+}}"""
 
 
-async def classify_and_send(websocket: WebSocket, frame: int, image_b64: str, detections: list):
+async def assess_and_send(websocket: WebSocket, frame: int, image_b64: str, detections: list):
     try:
+        prompt = ASSESSOR_PROMPT.format(detections_json=json.dumps(detections, indent=2))
         response = await claude.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=150,
+            max_tokens=256,
             messages=[{
                 "role": "user",
                 "content": [
                     {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": image_b64}},
-                    {"type": "text", "text": CLASSIFY_PROMPT},
+                    {"type": "text", "text": prompt},
                 ],
             }],
         )
-        classification = json.loads(response.content[0].text)
-        logger.info("Frame %d classified: %s", frame, classification)
+        assessment = json.loads(response.content[0].text)
+        logger.info("Frame %d assessed: %s", frame, assessment)
         await websocket.send_json({
-            "type": "classification",
+            "type": "assessment",
             "frame": frame,
             "detections": detections,
-            "classification": classification,
+            "assessment": assessment,
         })
     except Exception as e:
-        logger.warning("Claude classification failed: %s", e)
+        logger.warning("Claude assessment failed: %s", e)
 
 
 @router.websocket("/ws")
@@ -78,7 +104,6 @@ async def websocket_endpoint(websocket: WebSocket):
             frame_counter += 1
             t_start = time.perf_counter()
 
-            # decode image for inference
             nparr = np.frombuffer(image_bytes, np.uint8)
             img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
             t_decode = time.perf_counter()
@@ -89,14 +114,30 @@ async def websocket_endpoint(websocket: WebSocket):
                 if max(h, w) > 640:
                     scale = 640 / max(h, w)
                     img = cv2.resize(img, (int(w * scale), int(h * scale)))
-                results = model(img, imgsz=640, verbose=False)
-                t_infer = time.perf_counter()
-                for box in results[0].boxes:
+
+                # Run COCO model for vehicles/pedestrians/infrastructure
+                coco_results = coco_model(img, imgsz=640, verbose=False)
+                for box in coco_results[0].boxes:
+                    label = coco_results[0].names[int(box.cls)]
+                    if label in COCO_CLASS_MAP:
+                        detections.append({
+                            "label": label,
+                            "category": COCO_CLASS_MAP[label],
+                            "confidence": round(float(box.conf), 3),
+                            "bbox": [round(float(c), 1) for c in box.xyxy[0]],
+                        })
+
+                # Run pothole model for road hazards
+                pothole_results = pothole_model(img, imgsz=640, verbose=False)
+                for box in pothole_results[0].boxes:
                     detections.append({
-                        "label": results[0].names[int(box.cls)],
+                        "label": pothole_results[0].names[int(box.cls)],
+                        "category": "hazard",
                         "confidence": round(float(box.conf), 3),
                         "bbox": [round(float(c), 1) for c in box.xyxy[0]],
                     })
+
+                t_infer = time.perf_counter()
             else:
                 t_infer = t_decode
 
@@ -107,7 +148,6 @@ async def websocket_endpoint(websocket: WebSocket):
                 "total": round((t_total - t_start) * 1000, 1),
             }
 
-            # send YOLO results immediately
             await websocket.send_json({
                 "type": "detection",
                 "status": "ok",
@@ -116,14 +156,22 @@ async def websocket_endpoint(websocket: WebSocket):
                 "latency_ms": latency_ms,
             })
 
-            # fire off Claude classification in background
-            if detections:
+            # Only send to Claude when there are actionable detections
+            has_threats = any(
+                d["category"] in ("vehicle", "pedestrian", "hazard")
+                for d in detections
+            )
+            if has_threats:
+                det_summary = ", ".join(
+                    f"{d['label']}({d['category']}:{d['confidence']})"
+                    for d in detections
+                )
                 logger.info(
-                    "Frame %d: %d detections, lat=%s, lng=%s, latency=%s",
-                    frame_counter, len(detections), lat, lng, latency_ms,
+                    "Frame %d: [%s] lat=%s lng=%s latency=%s",
+                    frame_counter, det_summary, lat, lng, latency_ms,
                 )
                 task = asyncio.create_task(
-                    classify_and_send(websocket, frame_counter, image_b64, detections)
+                    assess_and_send(websocket, frame_counter, image_b64, detections)
                 )
                 background_tasks.add(task)
                 task.add_done_callback(background_tasks.discard)
