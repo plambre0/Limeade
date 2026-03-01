@@ -152,8 +152,8 @@ def compute_danger_score(detections: list, frame_width: int, rider_speed_mph: fl
                 if 0.25 < cx < 0.75:
                     score += 0.3
 
-        if d["category"] == "hazard" and d.get("estimated_distance") in ("close", "medium"):
-            score += 0.3
+        if d["category"] == "hazard":
+            score += 0.5
 
     # Multiple vehicles in close proximity
     close_vehicles = [d for d in detections if d["category"] == "vehicle" and d.get("estimated_distance") == "close"]
