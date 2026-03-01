@@ -1,7 +1,7 @@
 .PHONY: dev install lint db db-stop db-reset
 
 dev:
-	.venv/bin/uvicorn main:app --reload
+	.venv/bin/uvicorn main:app --reload --host 0.0.0.0
 
 install:
 	python3 -m venv .venv
