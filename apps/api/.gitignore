@@ -9,3 +9,4 @@ __pycache__
 src/cv/model/train/
 src/cv/model/test/
 src/cv/model/valid/
+frames
