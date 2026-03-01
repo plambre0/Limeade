@@ -9,8 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from sqlalchemy import text
 
-from db import engine
-from models import Base
+from src.db import engine
+from src.models import Base
+from src.routes.hazards import router as hazards_router
 
 
 @asynccontextmanager
@@ -30,6 +31,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(hazards_router)
 
 
 @app.get("/health")
