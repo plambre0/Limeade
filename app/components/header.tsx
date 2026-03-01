@@ -40,7 +40,7 @@ function About() {
 
 export default function Header() {
   return (
-    <AppBar position="sticky"  sx={{ bgcolor: '#766475' }}>
+    <AppBar position="sticky"  sx={{ bgcolor: '#4aa054' }}>
       <Toolbar>
         <Typography fontWeight= "bold" variant="h6" component="div" sx={{ flexGrow: 1}}>
           Scoot Safe

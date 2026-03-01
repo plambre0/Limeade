@@ -14,7 +14,7 @@ export default function AboutPage(){
                 <div className="flex flex-row gap-8 w-full">
                 <Fade in = {true} timeout ={1000 }>
                     <Box>
-                        <Typography variant="h6" sx={{ fontSize: { xs: '1.8rem', md: '3rem' } }}>
+                        <Typography color = "#005214" variant="h6" sx={{ fontSize: { xs: '1.8rem', md: '3rem' } }}>
                             About ScootSafe
                         </Typography>
                         <Typography sx={{fontSize: { xs: '16px', md: '20px' }, p: { xs: '10px', md: '20px' }}}>
@@ -30,7 +30,7 @@ export default function AboutPage(){
             <Fade in = {true} timeout ={2000}>
                 <Box sx={{ p: "20px"}}>
                 <Typography sx={{ fontSize: { xs: '1rem', md: '1.5rem' } }}> -Ride safe,</Typography>
-                <Typography sx={{ fontSize: { xs: '1.2rem', md: '2rem' } }}>Depaul Demonhacks 2026 ScootSafe team!</Typography>
+                <Typography color = "#005214" sx={{ fontSize: { xs: '1.2rem', md: '2rem' } }}>Depaul Demonhacks 2026 ScootSafe team!</Typography>
                 </Box>
             </Fade>
             </div>
