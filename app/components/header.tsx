@@ -43,7 +43,8 @@ export default function Header() {
     <AppBar position="sticky"  sx={{ bgcolor: '#4aa054' }}>
       <Toolbar>
         <Typography fontWeight= "bold" variant="h6" component="div" sx={{ flexGrow: 1}}>
-          Scoot Safe
+          Lime
+          Aide
         </Typography>
         <div className="flex flex-row gap-8 w-full">
             <Map />
