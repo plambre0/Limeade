@@ -7,16 +7,19 @@
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
-    "app:prebuild": "pnpm --filter app exec expo prebuild --clean",
-    "app:ios": "pnpm --filter app exec expo run:ios",
-    "app:android": "pnpm --filter app exec expo run:android"
+    "app:prebuild": "turbo run prebuild --filter=app",
+    "app:ios": "turbo run ios --filter=app",
+    "app:android": "turbo run android --filter=app"
   },
   "devDependencies": {
     "prettier": "^3.7.4",
     "turbo": "^2.8.12",
     "typescript": "5.9.2"
   },
-  "packageManager": "pnpm@9.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "engines": {
     "node": ">=18"
   }
