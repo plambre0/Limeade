@@ -4,9 +4,8 @@ __pycache__
 !.env.example
 
 .ruff_cache
-
+frames
 
 src/cv/model/train/
 src/cv/model/test/
 src/cv/model/valid/
-frames

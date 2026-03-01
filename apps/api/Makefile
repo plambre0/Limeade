@@ -1,15 +1,24 @@
 .PHONY: dev install lint db db-stop db-reset
 
+VENV := .venv
+ifeq ($(OS),Windows_NT)
+  BIN := $(VENV)/Scripts
+  PYTHON := python
+else
+  BIN := $(VENV)/bin
+  PYTHON := python3
+endif
+
 dev:
-	.venv/bin/uvicorn main:app --reload --host 0.0.0.0
+	$(BIN)/uvicorn main:app --reload --host 0.0.0.0
 
 install:
-	python3 -m venv .venv
-	.venv/bin/pip install -r requirements.txt
+	$(PYTHON) -m venv $(VENV)
+	$(BIN)/pip install -r requirements.txt
 
 lint:
-	.venv/bin/ruff check .
-	.venv/bin/ruff format --check .
+	$(BIN)/ruff check .
+	$(BIN)/ruff format --check .
 
 db:
 	cd ../../infra && docker compose up -d
