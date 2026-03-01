@@ -8,10 +8,11 @@ export default function Coordbar({ selected }: { selected: { lat: number; lng: n
       variant="outlined"
       sx={{
         borderRadius: '10px',
-        boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
-        border: '2px solid #322332',
-        transition: 'transform 0.2s ease',
-        '&:hover': { transform: 'scale(1.05)', cursor: 'pointer' },
+        boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.4)',
+        border: '1px solid #333',
+        bgcolor: '#111111',
+        transition: 'transform 0.2s ease, border-color 0.2s ease',
+        '&:hover': { transform: 'scale(1.02)', borderColor: '#00DD00', cursor: 'pointer' },
       }}
     >
       <CardContent>

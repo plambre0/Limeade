@@ -16,11 +16,11 @@ interface Hazard {
 }
 
 const severityColors: Record<number, string> = {
-  1: '#4caf50',
-  2: '#8bc34a',
-  3: '#ff9800',
-  4: '#f44336',
-  5: '#b71c1c',
+  1: '#00DD00',
+  2: '#AAFF00',
+  3: '#FFD600',
+  4: '#FF6600',
+  5: '#FF1744',
 };
 
 export default function MapHandler({ onMarkerClick }: { onMarkerClick: (loc: any) => void }) {
@@ -35,9 +35,12 @@ export default function MapHandler({ onMarkerClick }: { onMarkerClick: (loc: any
     <MapContainer
       center={[41.8832, -87.6324]}
       zoom={15}
-      style={{ height: '35rem', width: '100%' }}
+      style={{ height: '35rem', width: '100%', borderRadius: '10px', border: '1px solid #333' }}
     >
-      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      <TileLayer
+        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        attribution='&copy; <a href="https://carto.com/">CARTO</a>'
+      />
       {hazards.map((h) => (
         <CircleMarker
           key={h.id}

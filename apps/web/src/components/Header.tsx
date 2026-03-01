@@ -6,20 +6,25 @@ import { Link } from 'react-router-dom';
 
 export default function Header() {
   return (
-    <AppBar position="sticky" sx={{ bgcolor: '#766475' }}>
+    <AppBar position="sticky" sx={{ bgcolor: '#000', borderBottom: '1px solid #333' }}>
       <Toolbar>
-        <Typography fontWeight="bold" variant="h6" component="div" sx={{ flexGrow: 1 }}>
-          Scoot Safe
+        <Typography
+          fontWeight="bold"
+          variant="h6"
+          component="div"
+          sx={{ flexGrow: 0, mr: 4, color: '#00DD00' }}
+        >
+          ScootSafe
         </Typography>
-        <div className="flex flex-row gap-8 w-full">
+        <div className="flex flex-row gap-2">
           <Link to="/">
-            <Button variant="text" sx={{ color: 'white' }}>Map Dashboard</Button>
+            <Button sx={{ color: '#fff', '&:hover': { color: '#00DD00' } }}>Map Dashboard</Button>
           </Link>
           <Link to="/live">
-            <Button variant="text" sx={{ color: 'white' }}>Live Feed</Button>
+            <Button sx={{ color: '#fff', '&:hover': { color: '#00DD00' } }}>Live Feed</Button>
           </Link>
           <Link to="/about">
-            <Button variant="text" sx={{ color: 'white' }}>About</Button>
+            <Button sx={{ color: '#fff', '&:hover': { color: '#00DD00' } }}>About</Button>
           </Link>
         </div>
       </Toolbar>

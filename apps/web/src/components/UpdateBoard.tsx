@@ -26,6 +26,24 @@ const severityColor: Record<number, 'success' | 'warning' | 'error'> = {
   5: 'error',
 };
 
+const severityBorder: Record<number, string> = {
+  1: '#00DD00',
+  2: '#AAFF00',
+  3: '#FFD600',
+  4: '#FF6600',
+  5: '#FF1744',
+};
+
+function timeAgo(dateStr: string) {
+  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
 export default function UpdateBoard() {
   const { data: hazards = [] } = useQuery<Hazard[]>({
     queryKey: ['hazards'],
@@ -39,11 +57,20 @@ export default function UpdateBoard() {
   );
 
   return (
-    <Box sx={{ backgroundColor: '#e3e2e4', borderRadius: 2, p: 1, maxHeight: '70vh', overflow: 'auto' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, maxHeight: '75vh', overflow: 'auto' }}>
       {sorted.length === 0 && (
-        <Card variant="outlined" sx={{ borderRadius: '10px', border: '2px solid #322332' }}>
+        <Card
+          variant="outlined"
+          sx={{
+            borderRadius: '10px',
+            border: '1px solid #333',
+            bgcolor: '#111',
+            textAlign: 'center',
+            py: 4,
+          }}
+        >
           <CardContent>
-            <Typography color="text.secondary">
+            <Typography color="text.secondary" sx={{ fontSize: '1.1rem' }}>
               No hazards detected yet. Start a ride to see live events.
             </Typography>
           </CardContent>
@@ -53,26 +80,38 @@ export default function UpdateBoard() {
         <Card
           key={hazard.id}
           variant="outlined"
-          sx={{ borderRadius: '10px', border: '2px solid #322332', mb: 1 }}
+          sx={{
+            borderRadius: '10px',
+            border: '1px solid #333',
+            borderLeft: `3px solid ${severityBorder[hazard.severity] ?? '#333'}`,
+            bgcolor: '#111',
+            transition: 'border-color 0.2s ease, background-color 0.2s ease',
+            '&:hover': { bgcolor: '#1a1a1a', borderColor: '#555' },
+          }}
         >
-          <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, py: 1.5, '&:last-child': { pb: 1.5 } }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography fontWeight="bold" sx={{ textTransform: 'capitalize' }}>
-                {hazard.hazard_type.replace('_', ' ')}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Typography fontWeight={600} sx={{ textTransform: 'capitalize', fontSize: '0.95rem' }}>
+                  {hazard.hazard_type.replace('_', ' ')}
+                </Typography>
+                <Chip
+                  label={`Severity ${hazard.severity}`}
+                  size="small"
+                  color={severityColor[hazard.severity] ?? 'default'}
+                  sx={{ fontWeight: 500, height: 22 }}
+                />
+              </Box>
+              <Typography variant="caption" sx={{ color: '#666', fontWeight: 500 }}>
+                {timeAgo(hazard.created_at)}
               </Typography>
-              <Chip
-                label={`Severity ${hazard.severity}`}
-                size="small"
-                color={severityColor[hazard.severity] ?? 'default'}
-              />
             </Box>
             {hazard.description && (
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{ color: '#aaa', mt: 0.5 }}>
                 {hazard.description}
               </Typography>
             )}
-            <Typography variant="caption" color="text.secondary">
-              {new Date(hazard.created_at).toLocaleTimeString()} &middot;{' '}
+            <Typography variant="caption" sx={{ color: '#555', fontFamily: 'monospace' }}>
               {hazard.latitude.toFixed(4)}, {hazard.longitude.toFixed(4)}
             </Typography>
           </CardContent>
