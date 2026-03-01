@@ -6,9 +6,7 @@ __pycache__
 .ruff_cache
 
 # Python
-__pycache__/
 *.py[cod]
 *.pt
 *.pth
-.venv/
 venv/
