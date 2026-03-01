@@ -2,6 +2,7 @@
   "name": "api",
   "private": true,
   "scripts": {
+    "preinstall": "true",
     "dev": "make dev"
   }
 }
