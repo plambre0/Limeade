@@ -26,7 +26,7 @@ from ultralytics import YOLO
 # Allowed COCO labels for the vehicle/general model
 # ---------------------------------------------------------------------------
 VEHICLE_LABELS = frozenset([
-    "person", "bicycle", "car", "motorcycle",
+    "bicycle", "car", "motorcycle",
     "bus", "truck", "traffic light", "stop sign",
 ])
 
@@ -734,7 +734,7 @@ class CVPipeline:
         spd = event.get("rider_speed_mph", 0)
         cv2.putText(
             out,
-            f"ScootSafe CV | {seq} | {spd:.1f} mph",
+            f"Limade CV | {seq} | {spd:.1f} mph",
             (10, 25),
             font,
             0.6,

@@ -47,7 +47,8 @@
           }
         }
       ],
-      "react-native-vision-camera"
+      "react-native-vision-camera",
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -3,6 +3,8 @@
 # dependencies
 node_modules/
 
+frames
+
 # Expo
 .expo/
 dist/
