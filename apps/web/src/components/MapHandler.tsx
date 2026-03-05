@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet';
 
@@ -23,7 +22,7 @@ const severityColors: Record<number, string> = {
   5: '#FF1744',
 };
 
-export default function MapHandler({ onMarkerClick }: { onMarkerClick: (loc: any) => void }) {
+export default function MapHandler({ onMarkerClick }: { onMarkerClick: (loc: { lat: number; lng: number; label: string }) => void }) {
   const { data: hazards = [] } = useQuery<Hazard[]>({
     queryKey: ['hazards-map'],
     queryFn: () =>

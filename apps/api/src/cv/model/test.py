@@ -1,5 +1,6 @@
 from ultralytics import YOLO
 
+
 def main():
     model = YOLO(r"runs\detect\train20\weights\best.pt")
     # Run validation on test set

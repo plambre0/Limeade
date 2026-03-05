@@ -2,6 +2,7 @@ import argparse
 
 from ultralytics import YOLO
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--size", choices=["n", "s", "m", "l"], default="m",
