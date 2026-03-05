@@ -22,7 +22,7 @@ Real-time safety system for electric scooter riders: detects road hazards ahead,
 
 ## Tech Stack
 - Python
-- WebSocket server (Module E)
+- WebSocket server
 - YOLOv8 (computer vision)
 - Anthropic Claude Haiku (hazard analysis / labeling)
 - FastAPI (hazard DB API)
