@@ -18,21 +18,21 @@ Run with:
 import asyncio
 import base64
 import json
-import time
 import logging
 import os
-from datetime import datetime, timezone
+import time
 from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
+from datetime import datetime, timezone
 
-load_dotenv()  # loads ANTHROPIC_API_KEY from apps/api/.env automatically
 import cv2
 import numpy as np
 import websockets
 from anthropic import AsyncAnthropic
+from dotenv import load_dotenv
 
 from CV_Module import CVPipeline
 
+load_dotenv()  # loads ANTHROPIC_API_KEY from apps/api/.env automatically
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -47,7 +47,8 @@ HAIKU_MAX_TOKENS = 512
 # ---------------------------------------------------------------------------
 # Haiku system prompt
 # ---------------------------------------------------------------------------
-HAIKU_SYSTEM_PROMPT = """You are a real-time safety reasoning engine for an electric scooter rider in Chicago.
+HAIKU_SYSTEM_PROMPT = """You are a real-time safety reasoning engine for an
+electric scooter rider in Chicago.
 
 You receive structured detection data from a computer vision system (YOLOv8).
 You do NOT see the camera image — you reason from the detection data only.
@@ -81,14 +82,18 @@ Respond with ONLY valid JSON, no explanation, no markdown:
 {
   "is_real_threat": true or false,
   "urgency": 1 to 5,
-  "threat_type": "fast_vehicle" or "pothole" or "construction" or "pedestrian" or "multi_threat" or "false_positive",
+  "threat_type": "fast_vehicle" or "pothole" or "construction" or
+    "pedestrian" or "multi_threat" or "false_positive",
   "threat_summary": "one sentence describing the threat",
   "rider_action": "what the rider should do",
-  "alert_type": "haptic_only" or "sound_only" or "haptic_and_sound" or "none",
-  "haptic_pattern": "single_pulse" or "double_pulse" or "triple_pulse" or "continuous" or "none",
+  "alert_type": "haptic_only" or "sound_only" or "haptic_and_sound" or
+    "none",
+  "haptic_pattern": "single_pulse" or "double_pulse" or "triple_pulse" or
+    "continuous" or "none",
   "sound_type": "chime" or "beep" or "spoken" or "none",
   "sound_content": "spoken text if sound_type is spoken, otherwise empty string",
-  "reasoning": "one sentence explaining your decision referencing the detection data"
+  "reasoning": "one sentence explaining your decision referencing the
+    detection data"
 }"""
 
 
@@ -116,7 +121,8 @@ class ScootSafeServer:
         # Cooldown state
         self.last_haiku_call: float = 0.0  # unix timestamp of last Haiku call
 
-        # Connected WebSocket clients — store all connections so we can broadcast AlertDecision
+        # Connected WebSocket clients — store all connections
+        # so we can broadcast AlertDecision
         self.clients: set = set()
 
         # Pending trigger payload — CV thread sets this, async loop reads it
@@ -231,11 +237,12 @@ class ScootSafeServer:
 
             if time_since_last < COOLDOWN_SECONDS:
                 remaining = COOLDOWN_SECONDS - time_since_last
-                self.log.info(f"[Cooldown] Skipping trigger, {remaining:.1f}s remaining")
+                msg = f"[Cooldown] Skipping trigger, {remaining:.1f}s remaining"
+                self.log.info(msg)
                 continue
 
             self.last_haiku_call = now
-            self.log.info(f"[Trigger] Cooldown passed — firing Haiku call")
+            self.log.info("[Trigger] Cooldown passed — firing Haiku call")
 
             # Fire async Haiku call (non-blocking, awaited here but loop continues)
             asyncio.create_task(self._call_haiku(payload))
@@ -277,6 +284,8 @@ class ScootSafeServer:
                 for t in trend
             ]
 
+            det_str = "\n".join(det_lines) if det_lines else "  none"
+            trend_str = "\n".join(trend_lines)
             user_message = (
                 f"CURRENT FRAME (seq={current.get('frame_seq')}):\n"
                 f"  danger_score: {current.get('danger_score')}\n"
@@ -285,8 +294,8 @@ class ScootSafeServer:
                 f"  fastest_approach: {scene.get('fastest_approach_rate')}\n"
                 f"  total_vehicles: {scene.get('total_vehicles')}\n"
                 f"  total_hazards: {scene.get('total_hazards')}\n"
-                f"\nDETECTIONS:\n" + ("\n".join(det_lines) if det_lines else "  none") +
-                f"\n\nTREND (oldest → newest):\n" + "\n".join(trend_lines)
+                f"\nDETECTIONS:\n{det_str}\n\nTREND (oldest → newest):\n"
+                f"{trend_str}"
             )
 
             response = await self.anthropic.messages.create(
@@ -341,7 +350,8 @@ class ScootSafeServer:
         for ws in self.clients:
             try:
                 await ws.send(message)
-                self.log.info(f"[Alert] Sent to {ws.remote_address}: urgency={alert_decision.get('urgency')}")
+                urgency = alert_decision.get("urgency")
+                self.log.info(f"[Alert] Sent to {ws.remote_address}: urgency={urgency}")
             except websockets.exceptions.ConnectionClosed:
                 disconnected.add(ws)
 

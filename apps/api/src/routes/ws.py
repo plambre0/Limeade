@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import time
-from collections import deque                          # [NEW] for trend buffer
+from collections import deque  # [NEW] for trend buffer
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -26,7 +26,8 @@ FRAMES_DIR.mkdir(exist_ok=True)
 CV_DIR = Path(__file__).resolve().parent.parent / "cv" / "model"
 
 # Custom pothole model
-pothole_model = YOLO(str(CV_DIR / "runs" / "detect" / "train20" / "weights" / "best.pt"))
+pothole_weights = CV_DIR / "runs" / "detect" / "train20" / "weights" / "best.pt"
+pothole_model = YOLO(str(pothole_weights))
 
 # COCO pretrained model for vehicles, pedestrians, infrastructure
 coco_model = YOLO(str(CV_DIR / "yolov8n.pt"))
@@ -53,7 +54,8 @@ COOLDOWN_SECONDS = 3.0       # minimum seconds between Haiku calls
 
 
 # rules, and structured haptic/sound output fields.
-HAIKU_SYSTEM_PROMPT = """You are a real-time safety reasoning engine for an electric scooter rider in Chicago.
+HAIKU_SYSTEM_PROMPT = """You are a real-time safety reasoning engine for an
+electric scooter rider in Chicago.
 
 You receive a camera frame from the rider's phone mounted on the handlebars,
 PLUS structured detection data from a computer vision system (YOLOv8).
@@ -96,14 +98,17 @@ Respond with ONLY valid JSON, no explanation, no markdown:
 {
   "is_real_threat": true or false,
   "urgency": 1 to 5,
-  "threat_type": "fast_vehicle" or "nearby_vehicle" or "pedestrian_conflict" or "road_hazard" or "construction" or "multi_threat" or "none",
+  "threat_type": "fast_vehicle" or "nearby_vehicle" or "pedestrian_conflict"
+    or "road_hazard" or "construction" or "multi_threat" or "none",
   "threat_summary": "one sentence describing the threat",
   "rider_action": "what the rider should do",
   "alert_type": "haptic_only" or "sound_only" or "haptic_and_sound" or "none",
-  "haptic_pattern": "single_pulse" or "double_pulse" or "triple_pulse" or "continuous" or "none",
+  "haptic_pattern": "single_pulse" or "double_pulse" or "triple_pulse" or
+    "continuous" or "none",
   "sound_type": "chime" or "beep" or "spoken" or "none",
   "sound_content": "spoken text if sound_type is spoken, otherwise empty string",
-  "reasoning": "one sentence explaining your decision referencing the detection data"
+  "reasoning": "one sentence explaining your decision referencing the
+    detection data"
 }"""
 
 
@@ -176,7 +181,9 @@ def track_detections(prev_detections: list, curr_detections: list) -> list:
     return curr_detections
 
 
-def compute_danger_score(detections: list, frame_width: int, rider_speed_mph: float = 0) -> float:
+def compute_danger_score(
+    detections: list, frame_width: int, rider_speed_mph: float = 0
+) -> float:
     """Pre-agent danger scoring from design doc section 4.3."""
     score = 0.0
 
@@ -186,7 +193,9 @@ def compute_danger_score(detections: list, frame_width: int, rider_speed_mph: fl
             if d.get("approach_rate", 0) > 0.15:
                 score += 0.4
             # On collision course: centered + growing
-            if d.get("approach_rate", 0) > 0 and d.get("estimated_distance") in ("close", "medium"):
+            approach = d.get("approach_rate", 0)
+            dist = d.get("estimated_distance")
+            if approach > 0 and dist in ("close", "medium"):
                 cx = bbox_center_x(d["bbox"], frame_width)
                 if 0.25 < cx < 0.75:
                     score += 0.3
@@ -201,7 +210,11 @@ def compute_danger_score(detections: list, frame_width: int, rider_speed_mph: fl
             score += 0.5
 
     # Multiple vehicles in close proximity
-    close_vehicles = [d for d in detections if d["category"] == "vehicle" and d.get("estimated_distance") == "close"]
+    close_vehicles = [
+        d
+        for d in detections
+        if d["category"] == "vehicle" and d.get("estimated_distance") == "close"
+    ]
     if len(close_vehicles) >= 2:
         score += 0.2
 
@@ -242,13 +255,13 @@ async def assess_and_send(
         ]
 
         # User message with detection data + trend
+        det_str = "\n".join(det_lines) if det_lines else "  none"
+        trend_str = "\n".join(trend_lines) if trend_lines else "  no trend yet"
         user_text = (
             f"CURRENT FRAME (seq={frame}):\n"
             f"  danger_score: {danger_score}\n"
-            f"\nDETECTIONS:\n"
-            + ("\n".join(det_lines) if det_lines else "  none")
-            + f"\n\nTREND (oldest → newest, last 3 frames):\n"
-            + ("\n".join(trend_lines) if trend_lines else "  no trend yet")
+            f"\nDETECTIONS:\n{det_str}\n\nTREND "
+            f"(oldest → newest, last 3 frames):\n{trend_str}"
         )
 
         # Now uses system prompt + image + rich user text
@@ -310,7 +323,12 @@ async def assess_and_send(
                 )
                 session.add(hazard)
                 await session.commit()
-                logger.info("Frame %d: saved hazard id=%d type=%s", frame, hazard.id, hazard.hazard_type)
+                logger.info(
+                    "Frame %d: saved hazard id=%d type=%s",
+                    frame,
+                    hazard.id,
+                    hazard.hazard_type,
+                )
 
     except Exception as e:
         logger.warning("Claude assessment failed: %s", e)
@@ -327,10 +345,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
     # Connection-scoped state for optical flow, trigger, and cooldown.
     # These reset automatically when the client disconnects (function exits).
-    prev_gray: np.ndarray | None = None          # previous grayscale frame for optical flow
-    consecutive_danger: int = 0                   # frames above DANGER_THRESHOLD in a row
-    last_haiku_time: float = 0.0                  # time.monotonic() of last Haiku call
-    trend_buffer: deque = deque(maxlen=3)         # rolling last-3-frames summary for Haiku
+    prev_gray: np.ndarray | None = None  # previous grayscale frame for optical flow
+    trend_buffer: deque = deque(maxlen=3)  # rolling last-3-frames summary for Haiku
 
     try:
         while True:
@@ -394,7 +410,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 # Optical flow — Farneback dense flow, annotates each detection
                 # with flow_magnitude, flow_dx, flow_dy inside its bounding box.
-                # Inserted after tracking (so bboxes are finalized), before danger score.
+                # Inserted after tracking (so bboxes are finalized),
+                # before danger score.
                 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
                 if prev_gray is not None and prev_gray.shape == gray.shape:
                     flow = cv2.calcOpticalFlowFarneback(
@@ -447,12 +464,15 @@ async def websocket_endpoint(websocket: WebSocket):
                     if dist in vehicle_distances:
                         closest_dist = dist
                         break
-                approach_rates = [d.get("approach_rate", 0.0) for d in detections]
+                approach_rates = [
+                    d.get("approach_rate", 0.0) for d in detections
+                ]
+                max_approach = max(approach_rates) if approach_rates else 0.0
                 trend_buffer.append({
                     "frame_seq": frame_counter,
                     "danger_score": danger_score,
                     "closest_distance": closest_dist,
-                    "fastest_approach": round(max(approach_rates) if approach_rates else 0.0, 3),
+                    "fastest_approach": round(max_approach, 3),
                 })
 
             else:
@@ -479,10 +499,16 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # Save hazard and optionally assess with Claude
             if danger_score >= DANGER_THRESHOLD and lat and lng:
-                det_summary = ", ".join(
-                    f"{d['label']}({d['category']}:{d['confidence']} ar={d.get('approach_rate', 0)} {d.get('estimated_distance', '?')})"
-                    for d in detections
-                )
+                det_lines = []
+                for d in detections:
+                    ar = d.get("approach_rate", 0)
+                    est_dist = d.get("estimated_distance", "?")
+                    line = (
+                        f"{d['label']}({d['category']}:{d['confidence']} "
+                        f"ar={ar} {est_dist})"
+                    )
+                    det_lines.append(line)
+                det_summary = ", ".join(det_lines)
                 logger.info(
                     "Frame %d: danger=%.2f [%s] lat=%s lng=%s latency=%s",
                     frame_counter, danger_score, det_summary, lat, lng, latency_ms,
@@ -516,7 +542,13 @@ async def websocket_endpoint(websocket: WebSocket):
                         )
                         session.add(hazard)
                         await session.commit()
-                        logger.info("Frame %d: saved hazard id=%d type=%s sev=%d", frame_counter, hazard.id, hazard_type, severity)
+                        logger.info(
+                            "Frame %d: saved hazard id=%d type=%s sev=%d",
+                            frame_counter,
+                            hazard.id,
+                            hazard_type,
+                            severity,
+                        )
                 except Exception as e:
                     logger.warning("Failed to save hazard: %s", e)
 

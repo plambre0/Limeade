@@ -12,15 +12,14 @@ to Module E when 3 consecutive frames exceed the danger threshold.
 Libraries: ultralytics (YOLOv8), opencv-python-headless, numpy
 """
 
-import uuid
 import time
+import uuid
 from collections import deque
 from datetime import datetime, timezone
 
 import cv2
 import numpy as np
 from ultralytics import YOLO
-
 
 # ---------------------------------------------------------------------------
 # Allowed COCO labels for the vehicle/general model
@@ -424,7 +423,11 @@ class MotionAnalyzer:
 
             results[tid] = {
                 "approach_rate": round(approach_rate, 5),
-                "acceleration": round(acceleration, 5) if acceleration is not None else None,
+                "acceleration": (
+                    round(acceleration, 5)
+                    if acceleration is not None
+                    else None
+                ),
                 "direction": self._direction_label(cx, cy, frame_width, frame_height),
                 "lateral_drift": round(lateral_drift, 2),
                 "estimated_distance": self._distance_bucket(area_ratio),
@@ -470,7 +473,8 @@ class CVPipeline:
 
         # Callback to Module E — set externally after instantiation
         # Signature: callback(payload: dict) -> None
-        # Will be called by Module E asynchronously. If None, trigger fires but nothing is called.
+        # Will be called by Module E asynchronously.
+        # If None, trigger fires but nothing is called.
         self.on_trigger_callback = None  # type: ignore
 
     # ------------------------------------------------------------------
@@ -651,8 +655,12 @@ class CVPipeline:
             {
                 "frame_seq": e["frame_seq"],
                 "danger_score": e["danger_score"],
-                "closest_vehicle_distance": e["scene_summary"]["closest_vehicle_distance"],
-                "fastest_approach_rate": e["scene_summary"]["fastest_approach_rate"],
+                "closest_vehicle_distance": (
+                    e["scene_summary"]["closest_vehicle_distance"]
+                ),
+                "fastest_approach_rate": (
+                    e["scene_summary"]["fastest_approach_rate"]
+                ),
             }
             for e in recent
         ]
@@ -768,16 +776,21 @@ if __name__ == "__main__":
 
     def test_trigger_callback(payload: dict):
         print("\n[TRIGGER FIRED] Module E would be called now.")
-        print(f"  current danger_score : {payload['current_event']['danger_score']}")
-        print(f"  trend scores         : {[t['danger_score'] for t in payload['trend']]}")
-        print(f"  closest distance     : {payload['current_event']['scene_summary']['closest_vehicle_distance']}")
+        danger = payload["current_event"]["danger_score"]
+        print(f"  current danger_score : {danger}")
+        trend_scores = [t["danger_score"] for t in payload["trend"]]
+        print(f"  trend scores         : {trend_scores}")
+        scene = payload["current_event"]["scene_summary"]
+        closest = scene["closest_vehicle_distance"]
+        print(f"  closest distance     : {closest}")
 
     pipeline.on_trigger_callback = test_trigger_callback
     cap = cv2.VideoCapture(0)  # default webcam
 
     if not cap.isOpened():
         print("Cannot open webcam. Testing with synthetic frames.")
-        # Generate 30 synthetic frames with a growing rectangle (simulated approaching car)
+        # Generate 30 synthetic frames with a growing rectangle
+        # (simulated approaching car)
         for i in range(30):
             frame = np.zeros((720, 1280, 3), dtype=np.uint8)
             frame[:] = (40, 40, 40)

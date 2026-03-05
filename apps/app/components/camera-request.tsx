@@ -64,7 +64,9 @@ export default function CameraPage() {
            }
        }
     }
-    catch {}
+    } catch (e) {
+      console.error('Error processing message:', e);
+    }
   }, [lastMessage]);
 
   useEffect(() => {
